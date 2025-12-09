@@ -1,2 +1,2 @@
-# simplelolapi
-This is a simple League of Legends api client made for personal use and learning. 
+# Simple League Tool
+Hi this is the read me for my Simple League Tool. This is a personal project for me to get a bit more familar with python and working with apis.
