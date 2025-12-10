@@ -3,9 +3,10 @@ import os
 import tkinter as tk
 import threading
 import time
+import webbrowser
 
 from dotenv import load_dotenv
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, Menu
 
 load_dotenv()
 
@@ -23,6 +24,8 @@ api_get_rank = "https://na1.api.riotgames.com/lol/league/v4/entries/by-puuid/"
 api_account_by_puuid = (
     "https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/"
 )
+
+app_version = "v0.0.1"
 
 if not api_key:
     # We don't exit here so the GUI can show a helpful message, but most calls will fail.
@@ -160,7 +163,43 @@ class App:
         self.root.geometry("820x720")
         self.api_manager = None
         self.output_visible = False
+        self.create_menu_bar()
         self._build_ui()
+
+    def create_menu_bar(self):
+        menubar = Menu(self.root)
+        self.root.config(menu=menubar)
+
+        # file
+        file_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Exit", command=self.root.quit)
+
+        # settings
+        settings_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_command(label="Clear Data", command=self.clear_cache)
+
+        # help menu
+        help_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="About", command=self.show_about)
+        help_menu.add_command(label="Source", command=self.open_documentation)
+
+    def clear_cache(self):
+        if messagebox.askyesno(
+            "Clear Data", "Are you sure you want to clear all cached data?"
+        ):
+            if self.api_manager:
+                self.api_manager.clear_data()
+            self.on_clear()
+
+    def show_about(self):
+        about_text = f"Simple League Tool {app_version}"
+        messagebox.showinfo("About", about_text)
+
+    def open_documentation(self):
+        webbrowser.open("https://github.com/iAmAvi-lol/simplelolapi")
 
     def _build_ui(self):
         frm = ttk.Frame(self.root, padding=10)
