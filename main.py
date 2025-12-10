@@ -543,7 +543,7 @@ class App:
 
     def _worker_analyze_match(self, match_id: str):
         try:
-            # 1) Fetch match data
+            # Fetch match data
             resp = requests.get(
                 f"{api_get_matchdata}{match_id}?api_key={api_key}", timeout=20
             )
@@ -557,7 +557,7 @@ class App:
                 self.set_status("Error")
                 return
 
-            # 2) Map puuids -> Riot IDs (gameName#tagLine)
+            # Map puuids -> Riot IDs (gameName#tagLine)
             summoner_names = {}
             for i, puuid in enumerate(puuids):
                 try:
@@ -576,7 +576,7 @@ class App:
                 except Exception:
                     summoner_names[puuid] = "Error"
 
-            # 3) Get ranked info per puuid
+            # Get ranked info per puuid
             ranked_info = {}
             headers = {"X-Riot-Token": api_key}
             for i, puuid in enumerate(puuids):

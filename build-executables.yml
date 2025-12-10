@@ -1,0 +1,174 @@
+# Builds PyInstaller executables on Linux/Windows/macOS, creates a Windows NSIS installer and a macOS DMG,
+# then attaches everything to the GitHub Release that triggered the workflow.
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-linux:
+    name: Build Linux executable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build (PyInstaller)
+        run: |
+          # main.py is at repo root per your repo layout
+          pyinstaller --onefile --name simplelolapi main.py
+
+      - name: Prepare linux artifact
+        run: |
+          mkdir -p release-artifacts
+          # Ensure executable bit is set
+          chmod +x dist/simplelolapi
+          cp dist/simplelolapi release-artifacts/simplelolapi-linux
+          tar -czf release-artifacts/simplelolapi-linux.tar.gz -C release-artifacts simplelolapi-linux
+
+      - name: Upload linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplelol-linux
+          path: release-artifacts/*
+
+  build-windows:
+    name: Build Windows executable + NSIS installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install NSIS
+        run: |
+          choco install -y nsis
+        shell: powershell
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build (PyInstaller)
+        run: |
+          # Build single-file exe. Name without .exe; PyInstaller will append .exe in dist\.
+          pyinstaller --onefile --name simplelolapi main.py
+
+      - name: Create NSIS script
+        run: |
+          $nsi = @"
+          !define PRODUCT_NAME "simplelolapi"
+          !define PRODUCT_EXE "simplelolapi.exe"
+          OutFile "simplelolapi-windows-installer.exe"
+          SetOutPath "$INSTDIR"
+          File "dist\simplelolapi.exe"
+          CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}"
+          SectionEnd
+          "@
+          $nsi | Out-File -FilePath installer.nsi -Encoding ASCII
+        shell: powershell
+
+      - name: Build NSIS installer
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /V2 installer.nsi
+        shell: powershell
+
+      - name: Package windows artifacts
+        run: |
+          mkdir release-artifacts
+          copy dist\simplelolapi.exe release-artifacts\simplelolapi-windows.exe
+          copy simplelolapi-windows-installer.exe release-artifacts\simplelolapi-windows-installer.exe
+          powershell -Command "Compress-Archive -Path release-artifacts\* -DestinationPath release-artifacts\simplelol-windows.zip"
+        shell: powershell
+
+      - name: Upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplelol-windows
+          path: release-artifacts/*
+
+  build-macos:
+    name: Build macOS .app and DMG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install pyinstaller
+
+      - name: Build macOS .app (PyInstaller)
+        run: |
+          # Use --windowed so PyInstaller produces a .app bundle in dist/
+          # For a CLI app you may prefer a single executable; this approach gives users a clickable app and a DMG.
+          pyinstaller --name simplelolapi --windowed main.py
+
+      - name: Create DMG
+        run: |
+          mkdir -p release-artifacts
+          # dist/simplelolapi.app should exist after PyInstaller --windowed
+          if [ -d "dist/simplelolapi.app" ]; then
+            hdiutil create release-artifacts/simplelolapi-macos.dmg -volname "simplelolapi" -srcfolder "dist/simplelolapi.app" -ov -format UDZO
+          else
+            echo "dist/simplelolapi.app not found; packaging the single executable into a tarball instead"
+            chmod +x dist/simplelolapi
+            cp dist/simplelolapi release-artifacts/simplelolapi-macos
+            tar -czf release-artifacts/simplelolapi-macos.tar.gz -C release-artifacts simplelolapi-macos
+          fi
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplelol-macos
+          path: release-artifacts/*
+
+  attach-to-release:
+    name: Attach artifacts to GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows, build-macos]
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: simplelol-linux
+          path: artifacts
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: simplelol-windows
+          path: artifacts
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: simplelol-macos
+          path: artifacts
+
+      - name: Attach files to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
