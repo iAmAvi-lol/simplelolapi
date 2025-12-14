@@ -10,22 +10,106 @@ from tkinter import ttk, messagebox, Menu
 
 load_dotenv()
 
-# TODO Get longer lasting API key
 api_key = os.getenv("API_KEY")
 
-api_get_puuid = (
-    "https://americas.api.riotgames.com/riot/account/v1/accounts/by-riot-id/"
-)
-api_get_matchhistory = (
-    "https://americas.api.riotgames.com/lol/match/v5/matches/by-puuid/"
-)
-api_get_matchdata = "https://americas.api.riotgames.com/lol/match/v5/matches/"
-api_get_rank = "https://na1.api.riotgames.com/lol/league/v4/entries/by-puuid/"
-api_account_by_puuid = (
-    "https://americas.api.riotgames.com/riot/account/v1/accounts/by-puuid/"
-)
+# Region Specific Endpoints
+REGION_DATA = {
+    "North America": {
+        "account_region": "americas",
+        "match_region": "americas",
+        "league_region": "na1",
+    },
+    "Europe West": {
+        "account_region": "europe",
+        "match_region": "europe",
+        "league_region": "euw1",
+    },
+    "Europe Nordic & East": {
+        "account_region": "europe",
+        "match_region": "europe",
+        "league_region": "eun1",
+    },
+    "Korea": {
+        "acount_region": "asia",
+        "match_region": "asia",
+        "league_region": "kr",
+    },
+    "Japan": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "jp1",
+    },
+    "Brazil": {
+        "account_region": "americas",
+        "match_region": "americas",
+        "league_region": "br1",
+    },
+    "Latin America North": {
+        "account_region": "americas",
+        "match_region": "americas",
+        "league_region": "la1",
+    },
+    "Latin America South": {
+        "account_region": "americas",
+        "match_region": "americas",
+        "league_region": "la2",
+    },
+    "Oceania": {
+        "account_region": "sea",
+        "match_region": "sea",
+        "league_region": "oc1",
+    },
+    "Turkey": {
+        "account_region": "europe",
+        "match_region": "europe",
+        "league_region": "tr1",
+    },
+    "Philippines": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "ph2",
+    },
+    "Singapore": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "sg2",
+    },
+    "Taiwán": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "tw2",
+    },
+    "Thailand": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "th2",
+    },
+    "Vietnam": {
+        "account_region": "asia",
+        "match_region": "asia",
+        "league_region": "vn2",
+    },
+}
 
-app_version = "v0.0.1"
+DEFAULT_REGION = "North America"
+
+
+def get_account_api_url(region_name):
+    region = REGION_DATA[region_name]
+    return f"https://{region['account_region']}.api.riotgames.com/riot/account/v1/accounts/"
+
+
+def get_match_api_url(region_name):
+    region = REGION_DATA[region_name]
+    return f"https://{region['match_region']}.api.riotgames.com/lol/match/v5/matches/"
+
+
+def get_league_api_url(region_name):
+    region = REGION_DATA[region_name]
+    return f"https://{region['league_region']}.api.riotgames.com/lol/league/v4/"
+
+
+app_version = "v0.1.2"
 
 if not api_key:
     # We don't exit here so the GUI can show a helpful message, but most calls will fail.
@@ -39,19 +123,23 @@ tagline = ""
 
 
 class APIManager:
-    def __init__(self):
+    def __init__(self, region_name=DEFAULT_REGION):
         self.puuid_data = None
         self.match_data = None
         self.specific_match = None
         self.rank_data = None
+        self.region_name = region_name
+        self.account_base = get_account_api_url(region_name)
+        self.match_base = get_match_api_url(region_name)
+        self.league_base = get_league_api_url(region_name)
 
     def fetch_puuid(self):
         global username, tagline
         if not username or not tagline:
             raise RuntimeError("Username and tagline not set. Use the GUI to set them.")
 
-        url = f"{api_get_puuid}{username}/{tagline}?api_key={api_key}"
-        print("Fetching User PUUID:", url)
+        url = f"{self.account_base}by-riot-id/{username}/{tagline}?api_key={api_key}"
+        print("Fetching User PUUID from {self.region_name}:", url)
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
@@ -67,7 +155,7 @@ class APIManager:
             raise RuntimeError("puuid_data not set. Call fetch_puuid first.")
         print("Fetching matches from API")
         response = requests.get(
-            f"{api_get_matchhistory}{self.puuid_data}/ids?start=0&count=20&api_key={api_key}"
+            f"{self.match_base}by-puuid/{self.puuid_data}/ids?start=0&count=20&api_key={api_key}"
         )
         response.raise_for_status()
         self.match_data = response.json()
@@ -78,7 +166,7 @@ class APIManager:
         if not self.puuid_data:
             raise RuntimeError("puuid_data not set. Call fetch_puuid first.")
 
-        url = f"{api_get_rank}{self.puuid_data}?api_key={api_key}"
+        url = f"{self.league_base}entries/by-puuid/{self.puuid_data}?api_key={api_key}"
         response = requests.get(url)
 
         if response.status_code != 200:
@@ -118,7 +206,7 @@ class APIManager:
 
     def fetch_match_data(self, query_string):
         print("Loading Search Function")
-        response = requests.get(f"{api_get_matchdata}{query_string}?api_key={api_key}")
+        response = requests.get(f"{self.match_base}{query_string}?api_key={api_key}")
         response.raise_for_status()
         self.specific_match = response.json()["metadata"]["participants"].index(
             self.puuid_data
@@ -139,7 +227,7 @@ class APIManager:
     def detaied_details(self):
         """Get match data with participants"""
         print("📊 Fetching match data...")
-        url = f"{api_get_matchdata}{self.specific_match}?api_key={api_key}"
+        url = f"{self.match_base}{self.specific_match}?api_key={api_key}"
         response = requests.get(url)
 
         if response.status_code == 200:
@@ -160,7 +248,7 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Riot Viewer")
-        self.root.geometry("820x720")
+        self.root.geometry("920x720")
         self.api_manager = None
         self.output_visible = False
         self.create_menu_bar()
@@ -205,66 +293,138 @@ class App:
         frm = ttk.Frame(self.root, padding=10)
         frm.pack(fill="both", expand=True)
 
-        top = ttk.Frame(frm)
-        top.pack(fill="x", pady=(0, 8))
+        # Create a top frame for user input
+        input_frame = ttk.LabelFrame(frm, text="User Search", padding=10)
+        input_frame.pack(fill="x", pady=(0, 8))
 
-        ttk.Label(top, text='Enter "Username#TAG":').grid(row=0, column=0, sticky="w")
-        self.user_tag_entry = ttk.Entry(top, width=44)
-        self.user_tag_entry.grid(row=0, column=1, padx=(6, 12), sticky="w")
+        # Grid configuration for better layout
+        input_frame.columnconfigure(1, weight=1)
+        input_frame.columnconfigure(3, weight=1)
 
-        self.fetch_btn = ttk.Button(top, text="GO!", command=self.on_fetch_user)
-        self.fetch_btn.grid(row=0, column=2, padx=(6, 6))
+        # Region selection - Row 0
+        ttk.Label(input_frame, text="Region:", font=("Arial", 10, "bold")).grid(
+            row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 5)
+        )
+        self.region_var = tk.StringVar(value=DEFAULT_REGION)
+        self.region_dropdown = ttk.Combobox(
+            input_frame,
+            textvariable=self.region_var,
+            values=list(REGION_DATA.keys()),
+            width=25,  # Increased width
+            font=("Arial", 10),
+            state="readonly",
+        )
+        self.region_dropdown.grid(
+            row=0, column=1, sticky="ew", padx=(0, 20), pady=(0, 5)
+        )
 
-        self.clear_btn = ttk.Button(top, text="Clear", command=self.on_clear)
-        self.clear_btn.grid(row=0, column=3, padx=(6, 0))
+        # Username input - Row 0, next to region
+        ttk.Label(input_frame, text="Username#Tag:", font=("Arial", 10, "bold")).grid(
+            row=0, column=2, sticky="w", padx=(0, 10), pady=(0, 5)
+        )
+        self.user_tag_entry = ttk.Entry(input_frame, width=30, font=("Arial", 10))
+        self.user_tag_entry.grid(
+            row=0, column=3, sticky="ew", padx=(0, 20), pady=(0, 5)
+        )
 
-        self.status_label = ttk.Label(frm, text="Ready", relief="sunken", anchor="w")
-        self.status_label.pack(fill="x", pady=(4, 8))
+        # Buttons frame - Row 1
+        button_frame = ttk.Frame(input_frame)
+        button_frame.grid(row=1, column=0, columnspan=4, pady=(10, 0), sticky="ew")
 
+        # Center buttons
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(3, weight=1)
+
+        self.fetch_btn = ttk.Button(
+            button_frame, text="GO! Fetch User", command=self.on_fetch_user, width=15
+        )
+        self.fetch_btn.grid(row=0, column=1, padx=(0, 10))
+
+        self.clear_btn = ttk.Button(
+            button_frame, text="Clear All", command=self.on_clear, width=15
+        )
+        self.clear_btn.grid(row=0, column=2, padx=(10, 0))
+
+        # Status bar
+        self.status_label = ttk.Label(
+            frm,
+            text="Ready - Enter username and select region, then click GO!",
+            relief="sunken",
+            anchor="w",
+            padding=5,
+        )
+        self.status_label.pack(fill="x", pady=(8, 8))
+
+        # Main content area
         main = ttk.Frame(frm)
         main.pack(fill="both", expand=True)
 
-        left = ttk.Frame(main)
-        left.pack(side="left", fill="y", padx=(0, 8))
+        # Left panel - Matches
+        left = ttk.LabelFrame(main, text="Recent Matches", padding=10)
+        left.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-        ttk.Label(left, text="Matches:").pack(anchor="w")
-        self.match_listbox = tk.Listbox(left, width=40, height=20)
-        self.match_listbox.pack(side="left", fill="y")
+        ttk.Label(
+            left, text="Double-click a match to view details:", font=("Arial", 9)
+        ).pack(anchor="w", pady=(0, 5))
+
+        # Frame for listbox and scrollbar
+        list_frame = ttk.Frame(left)
+        list_frame.pack(fill="both", expand=True, pady=(0, 10))
+
+        self.match_listbox = tk.Listbox(
+            list_frame, width=40, height=20, font=("Courier New", 9)
+        )
+        self.match_listbox.pack(side="left", fill="both", expand=True)
         self.match_listbox.bind("<Double-Button-1>", self.on_show_selected_match)
 
         scrollbar = ttk.Scrollbar(
-            left, orient="vertical", command=self.match_listbox.yview
+            list_frame, orient="vertical", command=self.match_listbox.yview
         )
         scrollbar.pack(side="left", fill="y")
         self.match_listbox.config(yscrollcommand=scrollbar.set)
 
-        left_buttons = ttk.Frame(left)
-        left_buttons.pack(fill="x", pady=(6, 0))
+        # Match action buttons
+        button_container = ttk.Frame(left)
+        button_container.pack(fill="x", pady=(5, 0))
+
         self.show_btn = ttk.Button(
-            left_buttons, text="Show Match", command=self.on_show_selected_match
+            button_container,
+            text="Show Match Details",
+            command=self.on_show_selected_match,
         )
-        self.show_btn.pack(side="left")
+        self.show_btn.pack(side="left", padx=(0, 5))
+
         self.refresh_btn = ttk.Button(
-            left_buttons, text="Refresh", command=self.on_refresh_matches
+            button_container, text="Refresh Matches", command=self.on_refresh_matches
         )
-        self.refresh_btn.pack(side="left", padx=(6, 0))
+        self.refresh_btn.pack(side="left", padx=(0, 5))
 
         self.analyze_btn = ttk.Button(
-            left_buttons, text="Analyze Match", command=self.on_analyze_selected_match
+            button_container,
+            text="Full Analysis",
+            command=self.on_analyze_selected_match,
         )
-        self.analyze_btn.pack(side="left", padx=(6, 0))
+        self.analyze_btn.pack(side="left")
 
-        right = ttk.Frame(main)
+        # Right panel - Details
+        right = ttk.LabelFrame(main, text="Details View", padding=10)
         right.pack(side="left", fill="both", expand=True)
 
-        ttk.Label(right, text="Details:").pack(anchor="w")
-        self.details_text = tk.Text(right, wrap="word", state="disabled")
+        self.details_text = tk.Text(
+            right, wrap="word", state="disabled", font=("Courier New", 9), bg="#f5f5f5"
+        )
         self.details_text.pack(fill="both", expand=True)
 
-        self.output_frame = ttk.Frame(frm)
-        ttk.Label(self.output_frame, text="Analysis Output:").pack(anchor="w")
+        # Bottom panel - Analysis Output (hidden by default)
+        self.output_frame = ttk.LabelFrame(frm, text="Match Analysis", padding=10)
+
         self.output_text = tk.Text(
-            self.output_frame, wrap="word", height=12, state="disabled"
+            self.output_frame,
+            wrap="word",
+            height=12,
+            state="disabled",
+            font=("Courier New", 9),
+            bg="#f0f0f0",
         )
         self.output_text.pack(fill="both", expand=True)
 
@@ -334,6 +494,7 @@ class App:
             self.analyze_btn.config(state=state)
             e_state = "normal" if enable else "disabled"
             self.user_tag_entry.config(state=e_state)
+            self.region_dropdown.config(state="readonly" if enable else "disabled")
 
         self.root.after(0, _set)
 
@@ -353,9 +514,11 @@ class App:
         self.set_status("Cleared")
         self.api_manager = None
         # clear module-level username/tagline
-        global username, tagline
+        global username, tagline, current_region
         username = ""
         tagline = ""
+        current_region = DEFAULT_REGION
+        self.region_var.set(DEFAULT_REGION)
         # hide output
         if self.output_visible:
             self.output_frame.pack_forget()
@@ -389,10 +552,16 @@ class App:
             )
             return
 
-        # set module-level username/tagline for APIManager
-        global username, tagline
+        selected_region = self.region_var.get()
+        if selected_region not in REGION_DATA:
+            messagebox.showerror("Invalid Region", "Please select a valid region.")
+            return
+
+        # set module-level username/tagline/region for APIManager
+        global username, tagline, current_region
         username = u
         tagline = t
+        current_region = selected_region
 
         try:
             manager = APIManager()
@@ -424,7 +593,11 @@ class App:
             matches = self.api_manager.fetch_matches()
             puuid_val = self._get_puuid() or puuid
             self.set_details(
-                f"User: {username}#{tagline}\nPUUID: {puuid_val}\nRank: {rank}\n\nMatches: {len(matches)}"
+                f"Region: {current_region}\n"
+                f"User: {username}#{tagline}\n"
+                f"PUUID: {puuid_val}\n"
+                f"Rank: {rank}\n"
+                f"Matches: {len(matches)}"
             )
             self.populate_matches(matches)
             self.set_status("Ready")
@@ -485,9 +658,8 @@ class App:
             if not puuid_val:
                 raise RuntimeError("PUUID not available for the selected user.")
 
-            resp = requests.get(
-                f"{api_get_matchdata}{match_id}?api_key={api_key}", timeout=15
-            )
+            match_base = self.api_manager.match_base
+            resp = requests.get(f"{match_base}{match_id}?api_key={api_key}", timeout=15)
             resp.raise_for_status()
             data = resp.json()
 
@@ -543,10 +715,15 @@ class App:
 
     def _worker_analyze_match(self, match_id: str):
         try:
+            if not self.api_manager:
+                raise RuntimeError(
+                    "Internal error: API manager not available. Fetch user data first."
+                )
+            match_base = self.api_manager.match_base
+            league_base = self.api_manager.league_base
+            account_base = self.api_manager.account_base
             # Fetch match data
-            resp = requests.get(
-                f"{api_get_matchdata}{match_id}?api_key={api_key}", timeout=20
-            )
+            resp = requests.get(f"{match_base}{match_id}?api_key={api_key}", timeout=20)
             resp.raise_for_status()
             match_data = resp.json()
 
@@ -562,7 +739,7 @@ class App:
             for i, puuid in enumerate(puuids):
                 try:
                     time.sleep(0.1)  # small rate limiting
-                    url = f"{api_account_by_puuid}{puuid}?api_key={api_key}"
+                    url = f"{account_base}by-puuid/{puuid}?api_key={api_key}"
                     r = requests.get(url, timeout=10)
                     if r.status_code == 200:
                         d = r.json()
@@ -582,7 +759,7 @@ class App:
             for i, puuid in enumerate(puuids):
                 try:
                     time.sleep(0.2)  # rate limiting
-                    url = f"{api_get_rank}{puuid}"
+                    url = f"{league_base}{puuid}"
                     r = requests.get(url, headers=headers, timeout=10)
                     if r.status_code == 200:
                         entries = r.json()
